@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Optics Invoice Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #items-container {
+            margin: 20px 0;
+        }
+        .item-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        .item-row input {
+            flex: 1;
+        }
+        .remove-btn {
+            background-color: #f44336;
+        }
+    </style>
+</head>
+<body>
+    <h1>Modern Optics Invoice Generator</h1>
+    
+    <div class="form-group">
+        <label for="invoice-number">Invoice Number:</label>
+        <input type="text" id="invoice-number" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="invoice-date">Date:</label>
+        <input type="date" id="invoice-date" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="customer-name">Customer Name:</label>
+        <input type="text" id="customer-name" required>
+    </div>
+    
+    <h3>Items:</h3>
+    <div id="items-container">
+        <div class="item-row">
+            <input type="text" placeholder="Description" class="item-desc" required>
+            <input type="number" placeholder="QTY" class="item-qty" required min="1">
+            <input type="number" placeholder="TOTAL" class="item-total" required min="0">
+            <button type="button" class="remove-btn" onclick="removeItem(this)">Remove</button>
+        </div>
+    </div>
+    
+    <button type="button" onclick="addItem()">Add Item</button>
+    <button type="button" onclick="generatePDF()">Generate PDF</button>
+    
+    <script>
+        const { jsPDF } = window.jspdf;
+        
+        function addItem() {
+            const container = document.getElementById('items-container');
+            const newRow = document.createElement('div');
+            newRow.className = 'item-row';
+            newRow.innerHTML = `
+                <input type="text" placeholder="Description" class="item-desc" required>
+                <input type="number" placeholder="QTY" class="item-qty" required min="1">
+                <input type="number" placeholder="TOTAL" class="item-total" required min="0">
+                <button type="button" class="remove-btn" onclick="removeItem(this)">Remove</button>
+            `;
+            container.appendChild(newRow);
+        }
+        
+        function removeItem(button) {
+            const container = document.getElementById('items-container');
+            if (container.children.length > 1) {
+                button.parentElement.remove();
+            } else {
+                alert("At least one item is required");
+            }
+        }
+        
+        function generatePDF() {
+            // Validate form
+            if (!validateForm()) return;
+            
+            const doc = new jsPDF();
+            
+            // Static company information
+            doc.setFontSize(20);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont("helvetica", "bold");
+            doc.text("MODERN OPTICS", 105, 15, { align: 'center' });
+            
+            doc.setFontSize(12);
+            doc.setFont("helvetica", "normal");
+            doc.text(`INVOICE NO: ${document.getElementById('invoice-number').value}`, 14, 25);
+            
+            const date = new Date(document.getElementById('invoice-date').value);
+            const formattedDate = date.toLocaleDateString('en-GB').replace(/\//g, '.');
+            doc.text(`DATE: ${formattedDate}`, 14, 30);
+            
+            doc.text("17-NOMAN CENTER, BLOCK 5, MAIN", 14, 40);
+            doc.text("RASHID MINHAS ROA, GULSHAN-E-IOBAL KARACHI-75300", 14, 45);
+            doc.text("PHONE NO: +923212357966", 14, 50);
+            
+            // Customer information
+            doc.setFont("helvetica", "bold");
+            doc.text(`CUSTOMER NAME: ${document.getElementById('customer-name').value}`, 14, 65);
+            
+            // Items table
+            const items = getItems();
+            let subtotal = 0;
+            
+            const itemRows = items.map(item => {
+                subtotal += parseFloat(item.total);
+                return [item.desc, item.qty, item.total];
+            });
+            
+            doc.autoTable({
+                startY: 70,
+                head: [['DESCRIPTION', 'QTY', 'TOTAL']],
+                body: itemRows,
+                headStyles: {
+                    fillColor: [255, 255, 255],
+                    textColor: [0, 0, 0],
+                    fontStyle: 'bold'
+                },
+                styles: {
+                    fontSize: 10,
+                    cellPadding: 3
+                },
+                columnStyles: {
+                    0: { cellWidth: 'auto' },
+                    1: { cellWidth: 20 },
+                    2: { cellWidth: 30 }
+                }
+            });
+            
+            // Subtotal
+            doc.setFont("helvetica", "bold");
+            doc.text(`SUBTOTAL: ${subtotal.toLocaleString()}`, 14, doc.lastAutoTable.finalY + 10);
+            
+            // Footer
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(100, 100, 100);
+            doc.text("THANK YOU", 105, doc.lastAutoTable.finalY + 20, { align: 'center' });
+            
+            // Save the PDF
+            doc.save(`invoice_${document.getElementById('invoice-number').value}.pdf`);
+        }
+        
+        function getItems() {
+            const items = [];
+            const rows = document.getElementById('items-container').children;
+            
+            for (let row of rows) {
+                items.push({
+                    desc: row.querySelector('.item-desc').value,
+                    qty: row.querySelector('.item-qty').value,
+                    total: row.querySelector('.item-total').value
+                });
+            }
+            
+            return items;
+        }
+        
+        function validateForm() {
+            // Simple validation
+            if (!document.getElementById('invoice-number').value) {
+                alert("Please enter invoice number");
+                return false;
+            }
+            
+            if (!document.getElementById('customer-name').value) {
+                alert("Please enter customer name");
+                return false;
+            }
+            
+            const items = getItems();
+            if (items.length === 0) {
+                alert("Please add at least one item");
+                return false;
+            }
+            
+            for (let item of items) {
+                if (!item.desc || !item.qty || !item.total) {
+                    alert("Please fill all item fields");
+                    return false;
+                }
+            }
+            
+            return true;
+        }
+    </script>
+</body>
+</html>
